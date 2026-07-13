@@ -34,6 +34,39 @@
     letter-spacing:1.5px; text-transform:uppercase; margin-top:-5px;
   }
   .role-buttons{ display:flex; flex-direction:column; gap:14px; width:100%; max-width:320px; }
+
+  /* ================= PIN GATE ================= */
+  #pinGate{
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:24px; padding:24px; text-align:center;
+  }
+  #pinGate .mark{ font-size:22px; }
+  .pin-title{
+    font-family:var(--mono); font-size:11px; color:var(--text-dim);
+    letter-spacing:1.5px; text-transform:uppercase; margin-top:6px;
+  }
+  .pin-dots{ display:flex; gap:14px; }
+  .pin-dot{
+    width:14px; height:14px; border-radius:50%; border:1.5px solid var(--line);
+    background:transparent; transition:background .12s, border-color .12s;
+  }
+  .pin-dot.filled{ background:var(--amber); border-color:var(--amber); }
+  .pin-dots.shake{ animation:pinShake .35s; }
+  @keyframes pinShake{
+    10%,90%{ transform:translateX(-1px); } 20%,80%{ transform:translateX(2px); }
+    30%,50%,70%{ transform:translateX(-4px); } 40%,60%{ transform:translateX(4px); }
+  }
+  .pin-error{ font-family:var(--mono); font-size:11px; color:var(--bad); height:14px; }
+  .pin-keypad{ display:grid; grid-template-columns:repeat(3,64px); gap:14px; }
+  .pin-key{
+    width:64px; height:64px; border-radius:50%; border:1px solid var(--line);
+    background:var(--bg-panel); color:var(--text-hi); font-family:var(--disp);
+    font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .pin-key:active{ background:var(--bg-raised); border-color:var(--amber); }
+  .pin-key.ghost{ visibility:hidden; cursor:default; }
+  .pin-back{ background:none; border:none; color:var(--text-dim); font-size:13px; cursor:pointer; font-family:var(--mono); letter-spacing:0.5px; }
+  .pin-back:hover{ color:var(--text-hi); }
   .role-btn{
     padding:20px; border-radius:14px; border:1px solid var(--line); background:var(--bg-panel);
     color:var(--text-hi); cursor:pointer; text-align:left; display:flex; flex-direction:column; gap:4px;
@@ -252,6 +285,33 @@
   </div>
 </div>
 
+<!-- ================= DRIVER PIN GATE ================= -->
+<div id="pinGate" class="hidden">
+  <div>
+    <div class="mark">FARE<span>BOX</span></div>
+    <div class="pin-title">Driver access · enter PIN</div>
+  </div>
+  <div class="pin-dots" id="pinDots">
+    <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-error" id="pinError"></div>
+  <div class="pin-keypad">
+    <button class="pin-key" data-num="1">1</button>
+    <button class="pin-key" data-num="2">2</button>
+    <button class="pin-key" data-num="3">3</button>
+    <button class="pin-key" data-num="4">4</button>
+    <button class="pin-key" data-num="5">5</button>
+    <button class="pin-key" data-num="6">6</button>
+    <button class="pin-key" data-num="7">7</button>
+    <button class="pin-key" data-num="8">8</button>
+    <button class="pin-key" data-num="9">9</button>
+    <button class="pin-key ghost" tabindex="-1"></button>
+    <button class="pin-key" data-num="0">0</button>
+    <button class="pin-key" id="pinDelete">⌫</button>
+  </div>
+  <button class="pin-back" id="pinBack">← Back</button>
+</div>
+
 <!-- ================= DRIVER VIEW ================= -->
 <div id="driverApp" class="hidden">
   <header>
@@ -384,10 +444,61 @@ document.getElementById('choosePassenger').addEventListener('click', ()=>{
 });
 document.getElementById('chooseDriver').addEventListener('click', ()=>{
   document.getElementById('landing').classList.add('hidden');
-  document.getElementById('driverApp').classList.remove('hidden');
-  if(!driverStarted){ driverStarted = true; initDriverApp(); }
+  document.getElementById('pinGate').classList.remove('hidden');
 });
 document.getElementById('driverBack').addEventListener('click', ()=> location.reload());
+
+/* ---------- driver PIN gate ---------- */
+const DRIVER_PIN = '1234'; // change this to whatever 4-digit code your drivers should use
+let enteredPin = '';
+
+function updatePinDots(){
+  document.querySelectorAll('#pinDots .pin-dot').forEach((dot,i)=>{
+    dot.classList.toggle('filled', i < enteredPin.length);
+  });
+}
+function resetPin(){
+  enteredPin = '';
+  updatePinDots();
+  document.getElementById('pinError').textContent = '';
+}
+function showPinError(){
+  document.getElementById('pinError').textContent = 'Incorrect PIN';
+  const dots = document.getElementById('pinDots');
+  dots.classList.remove('shake');
+  void dots.offsetWidth; // restart the shake animation
+  dots.classList.add('shake');
+  setTimeout(resetPin, 420);
+}
+
+document.querySelectorAll('.pin-key[data-num]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(enteredPin.length >= 4) return;
+    enteredPin += btn.dataset.num;
+    updatePinDots();
+    if(enteredPin.length === 4){
+      if(enteredPin === DRIVER_PIN){
+        setTimeout(()=>{
+          document.getElementById('pinGate').classList.add('hidden');
+          document.getElementById('driverApp').classList.remove('hidden');
+          if(!driverStarted){ driverStarted = true; initDriverApp(); }
+          resetPin();
+        }, 150);
+      } else {
+        showPinError();
+      }
+    }
+  });
+});
+document.getElementById('pinDelete').addEventListener('click', ()=>{
+  enteredPin = enteredPin.slice(0, -1);
+  updatePinDots();
+});
+document.getElementById('pinBack').addEventListener('click', ()=>{
+  resetPin();
+  document.getElementById('pinGate').classList.add('hidden');
+  document.getElementById('landing').classList.remove('hidden');
+});
 document.getElementById('passengerBack').addEventListener('click', ()=> location.reload());
 
 
