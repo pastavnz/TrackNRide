@@ -412,11 +412,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-/* ============================================================
-   FIREBASE SETUP — one project/database shared by both views.
-   Get this from: Firebase Console → Project Settings → General →
-   "Your apps" → Web app → SDK setup and configuration.
-   ============================================================ */
+  
+/*FireBase*/
 const firebaseConfig = {
   apiKey: "AIzaSyCUTC9QHm6RmtSgz7h_wjlQN8Mf0N2Ol-I",
   authDomain: "transit-tracker-demo.firebaseapp.com",
@@ -526,13 +523,13 @@ function initDriverApp() {
 
   // Must match the vehicle ids referenced in ROUTES below.
   const VEHICLES = [
-    {id:'CXZ 345', route:'Route 1 · Balanga - Orani',      cap:60, color:'#F2A93B'},
-    {id:'TGH 067', route:'Route 1 · Orani - Balanga',      cap:60, color:'#F2A93B'},
-    {id:'GTA 314', route:'Route 2 · Balanga - Abucay',     cap:45, color:'#2DD4BF'},
-    {id:'FYM 241', route:'Route 2 · Abucay - Balanga',     cap:45, color:'#2DD4BF'},
-    {id:'BRO 436', route:'Route 3 · Balanga - Dinalupihan',  cap:70, color:'#FB7185'},
-    {id:'BTN 547', route:'Route 3 · Dinalupihan - Balanga',  cap:70, color:'#FB7185'},
-    {id:'UGH 069', route:'Route 4 · Arellano',cap:80, color:'#A78BFA'},
+    {id:'CXZ 345', route:'Route 1 · Balanga - Orani',      cap:20, color:'#F2A93B'},
+    {id:'TGH 067', route:'Route 1 · Orani - Balanga',      cap:20, color:'#F2A93B'},
+    {id:'GTA 314', route:'Route 2 · Balanga - Abucay',     cap:20, color:'#2DD4BF'},
+    {id:'FYM 241', route:'Route 2 · Abucay - Balanga',     cap:20, color:'#2DD4BF'},
+    {id:'BRO 436', route:'Route 3 · Balanga - Dinalupihan',  cap:20, color:'#FB7185'},
+    {id:'BTN 547', route:'Route 3 · Dinalupihan - Balanga',  cap:20, color:'#FB7185'},
+    {id:'UGH 069', route:'Route 4 · Arellano',cap:20, color:'#A78BFA'},
   ];
 
   const vehicleSelect = document.getElementById('vehicleSelect');
