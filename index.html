@@ -894,15 +894,7 @@ function initPassengerApp(){
       <div class="detail-section-label">Cabin view</div>
       <div class="car-diagram">${seatsHTML}</div>
 
-      <div class="detail-section-label">Upcoming stops</div>
-      <ul class="stop-list">
-        ${upcoming.map((s,i)=>`
-          <li class="stop-item${i===0?' next':''}">
-            <div class="stop-dot"></div>
-            <div class="stop-name">${s.name}</div>
-            <div class="stop-eta">${s.eta} min</div>
-          </li>`).join('')}
-      </ul>
+
     `;
   }
 
