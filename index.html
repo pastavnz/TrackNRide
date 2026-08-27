@@ -122,13 +122,6 @@
   #driverApp .occ-fill{ height:100%; border-radius:6px; transition:width .3s ease, background-color .3s ease; }
   #driverApp .occ-readout{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:6px; }
 
-  #driverApp .quick-row{ display:flex; gap:8px; margin-top:12px; }
-  #driverApp .quick-btn{
-    flex:1; padding:10px 4px; border-radius:8px; border:1px solid var(--line); background:var(--bg-raised);
-    color:var(--text-mid); font-family:var(--mono); font-size:11px; cursor:pointer; text-align:center;
-  }
-  #driverApp .quick-btn:active{ border-color:var(--amber); color:var(--text-hi); }
-
   #driverApp .hint{ font-family:var(--body); font-size:12.5px; color:var(--text-dim); line-height:1.5; }
   #driverApp .hint b{ color:var(--text-mid); }
 
@@ -322,6 +315,10 @@
     </div>
   </header>
 
+  <button id="btnTestSend" style="background: #F87171; color: white; padding: 12px; width: 100%; border:none; border-radius:8px; margin-bottom: 14px; font-weight: bold; cursor:pointer;">
+      ⚠️ FORCE TEST DATA TO FIREBASE
+  </button>
+
   <div class="card">
     <div class="label">Vehicle</div>
     <select id="vehicleSelect"></select>
@@ -339,7 +336,6 @@
     </div>
     <div class="occ-track"><div class="occ-fill" id="occFill" style="width:0%; background:var(--ok)"></div></div>
     <div class="occ-readout"><span id="occLabel">Low</span><span id="occPct">0%</span></div>
-
   </div>
 
   <div class="card">
@@ -361,17 +357,6 @@
   </div>
 </div>
 
-  <div id="driver-view" class="hidden">
-    <h2>Driver Dashboard <button onclick="location.reload()">⟲</button></h2>
-    
-    <button id="btn-test-send" style="background: red; color: white; padding: 15px; width: 100%; margin-bottom: 10px; font-weight: bold;">
-        ⚠️ FORCE TEST DATA TO FIREBASE
-    </button>
-
-    <div id="driver-map" style="height: 400px;"></div>
-</div>
-
-</div>
 <!-- ================= PASSENGER VIEW ================= -->
 <div id="passengerApp" class="hidden">
   <div id="topbar">
@@ -413,8 +398,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-  
-/*FireBase*/
+/* Firebase Initialization */
 const firebaseConfig = {
   apiKey: "AIzaSyBwfqtDU-M-Go0I3WvGU5zQVtytNegDjo0",
   authDomain: "tracknride-48930.firebaseapp.com",
@@ -429,7 +413,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-/* ---------- role picker ---------- */
+/* Role Picker */
 let driverStarted = false, passengerStarted = false;
 
 document.getElementById('choosePassenger').addEventListener('click', ()=>{
@@ -443,8 +427,8 @@ document.getElementById('chooseDriver').addEventListener('click', ()=>{
 });
 document.getElementById('driverBack').addEventListener('click', ()=> location.reload());
 
-/* ---------- driver PIN gate ---------- */
-const DRIVER_PIN = '6769'; // change this to whatever 4-digit code your drivers should use
+/* Driver PIN Gate */
+const DRIVER_PIN = '6769';
 let enteredPin = '';
 
 function updatePinDots(){
@@ -461,7 +445,7 @@ function showPinError(){
   document.getElementById('pinError').textContent = 'Incorrect PIN';
   const dots = document.getElementById('pinDots');
   dots.classList.remove('shake');
-  void dots.offsetWidth; // restart the shake animation
+  void dots.offsetWidth;
   dots.classList.add('shake');
   setTimeout(resetPin, 420);
 }
@@ -496,42 +480,30 @@ document.getElementById('pinBack').addEventListener('click', ()=>{
 });
 document.getElementById('passengerBack').addEventListener('click', ()=> location.reload());
 
-
-/* ============================================================
-   DRIVER APP
-   ============================================================ */
+/* Driver App */
 function initDriverApp() {
-    // 👇 ADD THIS TEST LISTENENER AT THE TOP OF THE FUNCTION 👇
-    document.getElementById('btn-test-send').addEventListener('click', () => {
-        console.log("Forcing database write...");
-        database.ref('drivers/bus_1').set({
-            latitude: 14.5995,
-            longitude: 120.9842,
-            timestamp: Date.now()
-        }).then(() => {
-            alert("Database write successful! Check your Firebase tab.");
-        }).catch((error) => {
-            alert("Firebase rejected it! Error: " + error.message);
-        });
+  document.getElementById('btnTestSend').addEventListener('click', () => {
+    db.ref('vehicles/CXZ 345').set({
+      lat: 14.681890,
+      lng: 120.537403,
+      occupancyPct: 50,
+      routeName: 'Route 1 · Balanga - Mariveles',
+      updatedAt: Date.now()
+    }).then(() => {
+      alert("Database write successful! Check your Firebase Console.");
+    }).catch((error) => {
+      alert("Firebase rejected it! Error: " + error.message);
     });
+  });
 
-    // (Leave the rest of your original map and navigator.geolocation code below it)
-    const map = L.map('driver-map').setView([0, 0], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    // ... rest of code
-}
-
-{
-
-  // Must match the vehicle ids referenced in ROUTES below.
   const VEHICLES = [
-    {id:'CXZ 345', route:'Route 1 · Balanga - Mariveles',      cap:50, color:'#F2A93B'},
-    {id:'TGH 067', route:'Route 1 · Orani - Balanga',      cap:20, color:'#F2A93B'},
-    {id:'GTA 314', route:'Route 2 · Balanga - Abucay',     cap:20, color:'#2DD4BF'},
-    {id:'FYM 241', route:'Route 2 · Abucay - Balanga',     cap:20, color:'#2DD4BF'},
-    {id:'BRO 436', route:'Route 3 · Balanga - Dinalupihan',  cap:20, color:'#FB7185'},
-    {id:'BTN 547', route:'Route 3 · Dinalupihan - Balanga',  cap:20, color:'#FB7185'},
-    {id:'UGH 069', route:'Route 4 · Arellano',cap:20, color:'#A78BFA'},
+    {id:'CXZ 345', route:'Route 1 · Balanga - Mariveles', cap:50, color:'#F2A93B'},
+    {id:'TGH 067', route:'Route 1 · Orani - Balanga', cap:20, color:'#F2A93B'},
+    {id:'GTA 314', route:'Route 2 · Balanga - Abucay', cap:20, color:'#2DD4BF'},
+    {id:'FYM 241', route:'Route 2 · Abucay - Balanga', cap:20, color:'#2DD4BF'},
+    {id:'BRO 436', route:'Route 3 · Balanga - Dinalupihan', cap:20, color:'#FB7185'},
+    {id:'BTN 547', route:'Route 3 · Dinalupihan - Balanga', cap:20, color:'#FB7185'},
+    {id:'UGH 069', route:'Route 4 · Arellano', cap:20, color:'#A78BFA'},
   ];
 
   const vehicleSelect = document.getElementById('vehicleSelect');
@@ -580,27 +552,19 @@ function initDriverApp() {
     pax = Math.max(0, pax - 1);
     refreshOccUI();
   });
-  document.querySelectorAll('#driverApp .quick-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const pct = parseInt(btn.dataset.pct, 10);
-      pax = Math.round((pct/100) * currentVehicle.cap);
-      refreshOccUI();
-    });
-  });
+
   refreshOccUI();
 
-  /* ---------- mini map (driver's own position preview) ---------- */
-  const map = L.map('miniMap', { zoomControl:false, attributionControl:true, dragging:false, scrollWheelZoom:false })
-    .setView([14.605, 121.013], 14);
+  const miniMap = L.map('miniMap', { zoomControl:false, attributionControl:true, dragging:false, scrollWheelZoom:false })
+    .setView([14.681890, 120.537403], 14);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
-  setTimeout(()=> map.invalidateSize(), 0);
+  }).addTo(miniMap);
+  setTimeout(()=> miniMap.invalidateSize(), 0);
   let selfMarker = null;
 
-  /* ---------- broadcasting to Firebase ---------- */
   async function broadcastPosition(lat, lng, accuracy){
     const pct = Math.round((pax / currentVehicle.cap) * 100);
     const payload = { lat, lng, occupancyPct: pct, routeName: currentVehicle.route, updatedAt: Date.now() };
@@ -622,8 +586,6 @@ function initDriverApp() {
       alert('This browser does not support location sharing.');
       return;
     }
-    // If this tab loses connection or closes without pressing "stop",
-    // Firebase removes the vehicle entry automatically.
     db.ref('vehicles/' + currentVehicle.id).onDisconnect().remove();
 
     watchId = navigator.geolocation.watchPosition(
@@ -631,18 +593,18 @@ function initDriverApp() {
         const {latitude, longitude, accuracy} = pos.coords;
         lastPos = [latitude, longitude];
         if(!selfMarker){
-          selfMarker = L.circleMarker(lastPos, { radius:7, color:currentVehicle.color, weight:2, fillColor:currentVehicle.color, fillOpacity:0.9 }).addTo(map);
+          selfMarker = L.circleMarker(lastPos, { radius:7, color:currentVehicle.color, weight:2, fillColor:currentVehicle.color, fillOpacity:0.9 }).addTo(miniMap);
         } else {
           selfMarker.setLatLng(lastPos);
         }
-        map.panTo(lastPos);
+        miniMap.panTo(lastPos);
         if(!writeTimer){
           broadcastPosition(latitude, longitude, accuracy);
           writeTimer = setTimeout(()=>{ writeTimer = null; }, 4000);
         }
       },
       (err)=>{
-        alert('Location error: ' + err.message + '\n\nMake sure location permission is granted and you\'re on HTTPS.');
+        alert('Location error: ' + err.message + '\n\nMake sure location permission is granted and you are on HTTPS.');
         stopSharing();
       },
       { enableHighAccuracy:true, maximumAge:2000, timeout:10000 }
@@ -675,22 +637,17 @@ function initDriverApp() {
   }, 4000);
 }
 
-
-/* ============================================================
-   PASSENGER APP
-   ============================================================ */
+/* Passenger App */
 function initPassengerApp(){
-
   const ROUTES = [
     {
       id:'R1', name:'Route 1 · Balanga to Mariveles Vice Versa', color:'#F2A93B',
       stops:[
         {name:'Balanga Terminal', lat:14.681890, lng:120.537403},
-        {name:'Mariveles Terminal', lat:14.441977310874933, lng:120.50149318493439},
+        {name:'Mariveles Terminal', lat:14.441977, lng:120.501493},
       ],
-      vehicles:[ {id:'CXZ 345', cap:50, occ:2}, {id:'TGH 067', cap:50, occ:2} ]
-    },
-  
+      vehicles:[ {id:'CXZ 345', cap:50, occ:0}, {id:'TGH 067', cap:50, occ:0} ]
+    }
   ];
 
   function occLevel(pct){
@@ -711,16 +668,15 @@ function initPassengerApp(){
     return best;
   }
 
-  const map = L.map('map', { zoomControl:false, attributionControl:true }).setView([14.605, 121.013], 13.6);
+  const map = L.map('map', { zoomControl:false, attributionControl:true }).setView([14.681890, 120.537403], 12);
   L.control.zoom({ position:'bottomright' }).addTo(map);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
-  setTimeout(()=> map.invalidateSize(), 0);
 
-  const vehicleMarkers = {}; // id -> {marker, route, data}
+  const vehicleMarkers = {};
   const routeGroupState = {};
 
   function busIconSVG(color){
@@ -741,41 +697,17 @@ function initPassengerApp(){
 
   let selectedVehicleId = null;
 
-  // Snaps a route's stops to real road geometry using OSRM's free public
-  // routing API. Falls back to straight lines between stops if the request
-  // fails — e.g. this artifact preview sandbox blocks outside network calls,
-  // but this works normally once the file is hosted on your own domain.
-  async function fetchRoadPath(stops){
-    try{
-      const coordStr = stops.map(s => `${s.lng},${s.lat}`).join(';');
-      const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if(data && data.code === 'Ok' && data.routes && data.routes[0]){
-        return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-      }
-    }catch(e){ /* network blocked — use fallback below */ }
-    return stops.map(s => [s.lat, s.lng]);
-  }
-
   ROUTES.forEach(route=>{
     const straight = route.stops.map(s=>[s.lat, s.lng]);
-    const line = L.polyline(straight, { color:route.color, weight:4, opacity:0.85, lineCap:'round' }).addTo(map);
-    fetchRoadPath(route.stops).then(roadCoords => line.setLatLngs(roadCoords));
-
-    const isClosedLoop = route.stops.length > 1 &&
-      route.stops[0].lat === route.stops[route.stops.length-1].lat &&
-      route.stops[0].lng === route.stops[route.stops.length-1].lng;
-    route.stops.forEach((s,i)=>{
-      if(isClosedLoop && i === route.stops.length-1) return; // don't double-draw the closing stop
+    L.polyline(straight, { color:route.color, weight:4, opacity:0.85, lineCap:'round' }).addTo(map);
+    route.stops.forEach((s)=>{
       L.circleMarker([s.lat,s.lng], {
         radius:4, color:route.color, weight:2, fillColor:'#FFFFFF', fillOpacity:1
       }).addTo(map);
     });
-    route.vehicles.forEach(vdata=>{ vdata.isLive = false; }); // markers created in tick() only once live
+    route.vehicles.forEach(vdata=>{ vdata.isLive = false; });
   });
 
-  /* ---------- sidebar build ---------- */
   const routelist = document.getElementById('routelist');
   function renderSidebar(filter=''){
     routelist.innerHTML = '';
@@ -837,7 +769,6 @@ function initPassengerApp(){
 
   document.getElementById('search').addEventListener('input', e=> renderSidebar(e.target.value));
 
-  /* ---------- detail panel ---------- */
   const detailPanel = document.getElementById('detail');
   const detailBody = document.getElementById('detailBody');
 
@@ -871,7 +802,7 @@ function initPassengerApp(){
     const upcoming = [];
     for(let i=1;i<=3;i++){
       const idx = (segIdx + i) % (route.stops.length - 1);
-      upcoming.push({ name: route.stops[(segIdx+i) % (route.stops.length-1) + 1].name, eta: i*3 + Math.floor(Math.random()*2) });
+      upcoming.push({ name: route.stops[(segIdx+i) % (route.stops.length-1) + 1].name, eta: i*3 });
     }
 
     detailBody.innerHTML = `
@@ -926,8 +857,7 @@ function initPassengerApp(){
   }
   setInterval(tickClock, 1000); tickClock();
 
-  /* ---------- real-time data: read what drivers have broadcast ---------- */
-  const LIVE_STALE_MS = 20000; // treat data older than this as offline
+  const LIVE_STALE_MS = 20000;
 
   async function fetchLiveVehicle(id){
     try{
