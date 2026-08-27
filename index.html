@@ -689,8 +689,37 @@ function initPassengerApp(){
         {name:'Mariveles Terminal', lat:14.441977310874933, lng:120.50149318493439},
       ],
       vehicles:[ {id:'CXZ 345', cap:50, occ:2}, {id:'TGH 067', cap:50, occ:2} ]
+      },
+    {
+      id:'R2', name:'Route 2 · Balanga-Abucay', color:'#2DD4BF',
+      stops:[
+        {name:'Balanga Terminal',  lat:14.681890, lng:120.537403},
+        {name:'Four Lanes',       lat:14.689518, lng:120.538696},
+        {name:'Abucay Plaza',     lat:14.729621, lng:120.535659},
+      ],
+      vehicles:[ {id:'GTA 314', cap:45, occ:39}, {id:'FYM 241', cap:45, occ:8} ]
     },
-  
+    {
+      id:'R3', name:'Route 3 · Balanga - Dinalupihan', color:'#FB7185',
+      stops:[
+        {name:'Balanga Terminal',  lat:14.681890, lng:120.537403},
+        {name:'Penelco',   lat:14.687868, lng:120.517681},
+        {name:'Altierra',      lat:14.698879, lng:120.516409},
+        {name:'Gugo',        lat:14.760555, lng:120.498551},
+        {name:'Kanto ng Orani',    lat:14.790523, lng:120.491041},
+        {name:'Hermosa Terminal',    lat:14.843380, lng:120.476018},
+        {name:'Dinalupihan Terminal',    lat:14.867337, lng:120.465420},
+      ],
+      vehicles:[ {id:'BRO 436', cap:70, occ:63}, {id:'BTN 547', cap:70, occ:70} ]
+    },
+    {
+      id:'R4', name:'Route 4 · Arellano  ', color:'#A78BFA',
+      stops:[
+        {name:'Balanga Terminal',  lat:14.681890, lng:120.537403},
+        {name:'Arellano',        lat:14.677378, lng:120.520593},
+      ],
+      vehicles:[ {id:'UGH 069', cap:80, occ:12} ]
+    }
   ];
 
   function occLevel(pct){
