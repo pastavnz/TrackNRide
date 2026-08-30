@@ -132,6 +132,13 @@
   #driverApp .hint{ font-family:var(--body); font-size:12.5px; color:var(--text-dim); line-height:1.5; }
   #driverApp .hint b{ color:var(--text-mid); }
 
+  #driverApp .res-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  #driverApp .res-num{ font-family:var(--disp); font-weight:700; font-size:30px; line-height:1; }
+  #driverApp .res-sub{ font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:2px; }
+  #driverApp .res-free{ font-family:var(--body); font-size:12.5px; color:var(--text-mid); margin-top:10px; }
+  #driverApp .res-free b{ color:var(--text-hi); }
+  #driverApp #clearResBtn{ flex:none; padding:10px 16px; }
+
   /* ================= PASSENGER ================= */
   #passengerApp{ display:flex; flex-direction:column; height:100vh; overflow:hidden; }
 
@@ -247,6 +254,13 @@
 
   .detail-section-label{ font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); margin:4px 0 10px; }
 
+  .reserve-box{ background:var(--bg-raised); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:6px; }
+  .reserve-stats{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px; color:var(--text-mid); margin-bottom:10px; }
+  .reserve-stats b{ color:var(--text-hi); }
+  .reserve-btn{ width:100%; padding:13px; border:none; border-radius:9px; font-family:var(--disp); font-weight:600; font-size:14px; cursor:pointer; background:var(--amber); color:#1A1300; transition:background .2s, color .2s; }
+  .reserve-btn.reserved{ background:var(--bg-panel); color:var(--rose); border:1px solid var(--rose); }
+  .reserve-btn:disabled{ background:var(--line); color:var(--text-dim); cursor:not-allowed; }
+
   ::-webkit-scrollbar{ width:8px; }
   ::-webkit-scrollbar-track{ background:transparent; }
   ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
@@ -340,6 +354,18 @@
     <div class="occ-track"><div class="occ-fill" id="occFill" style="width:0%; background:var(--ok)"></div></div>
     <div class="occ-readout"><span id="occLabel">Low</span><span id="occPct">0%</span></div>
 
+  </div>
+
+  <div class="card">
+    <div class="label">Seat reservations</div>
+    <div class="res-row">
+      <div>
+        <div class="res-num" id="resNum">0</div>
+        <div class="res-sub">passenger(s) reserved</div>
+      </div>
+      <button class="quick-btn" id="clearResBtn">Clear</button>
+    </div>
+    <div class="res-free">Free spaces left: <b id="resFree">—</b></div>
   </div>
 
   <div class="card">
@@ -564,12 +590,38 @@ function initDriverApp() {
     document.getElementById('occLabel').textContent = lvl.label;
     document.getElementById('occLabel').style.color = lvl.c;
     document.getElementById('occPct').textContent = pct + '%';
+    refreshResUI();
   }
+
+  /* ---------- seat reservations (driver side) ---------- */
+  let resListenerRef = null; // Firebase ref we currently have a .on('value') listener attached to
+  let lastResCount = 0;      // most recent reservation count we heard from Firebase for currentVehicle
+
+  function refreshResUI(){
+    const free = Math.max(0, currentVehicle.cap - pax - lastResCount);
+    document.getElementById('resNum').textContent = lastResCount;
+    document.getElementById('resFree').textContent = free;
+  }
+
+  function bindReservationListener(){
+    if(resListenerRef) resListenerRef.off(); // stop listening to the previous vehicle's reservations
+    lastResCount = 0;
+    resListenerRef = db.ref('reservations/' + currentVehicle.id);
+    resListenerRef.on('value', snap=>{
+      lastResCount = snap.exists() ? snap.val() : 0;
+      refreshResUI();
+    });
+  }
+
+  document.getElementById('clearResBtn').addEventListener('click', ()=>{
+    db.ref('reservations/' + currentVehicle.id).set(0);
+  });
 
   vehicleSelect.addEventListener('change', ()=>{
     currentVehicle = VEHICLES.find(v=>v.id === vehicleSelect.value);
     pax = 0;
     refreshOccUI();
+    bindReservationListener();
   });
 
   document.getElementById('plusBtn').addEventListener('click', ()=>{
@@ -588,6 +640,7 @@ function initDriverApp() {
     });
   });
   refreshOccUI();
+  bindReservationListener();
 
   /* ---------- mini map (driver's own position preview) ---------- */
   const map = L.map('miniMap', { zoomControl:false, attributionControl:true, dragging:false, scrollWheelZoom:false })
@@ -625,6 +678,9 @@ function initDriverApp() {
     // If this tab loses connection or closes without pressing "stop",
     // Firebase removes the vehicle entry automatically.
     db.ref('vehicles/' + currentVehicle.id).onDisconnect().remove();
+    // Same safety net for reservations, and start this trip with a clean count.
+    db.ref('reservations/' + currentVehicle.id).onDisconnect().remove();
+    db.ref('reservations/' + currentVehicle.id).set(0);
 
     watchId = navigator.geolocation.watchPosition(
       (pos)=>{
@@ -662,6 +718,8 @@ function initDriverApp() {
     vehicleSelect.disabled = false;
     db.ref('vehicles/' + currentVehicle.id).onDisconnect().cancel();
     db.ref('vehicles/' + currentVehicle.id).remove();
+    db.ref('reservations/' + currentVehicle.id).onDisconnect().cancel();
+    db.ref('reservations/' + currentVehicle.id).remove();
   }
 
   goLiveBtn.addEventListener('click', ()=>{
@@ -728,6 +786,42 @@ function initPassengerApp(){
     return {c:'var(--bad)', label:'Crowded'};
   }
   function occPct(v){ return Math.round((v.occ / v.cap) * 100); }
+
+  /* ---------- seat reservations (passenger side) ---------- */
+  function reservationKey(vehId){ return 'tnr_reservation_' + vehId; }
+  function iHaveReserved(vehId){ return localStorage.getItem(reservationKey(vehId)) === '1'; }
+
+  async function reserveSeat(route, vdata){
+    const limit = vdata.cap - vdata.occ; // seats not already filled by boarded passengers
+    try{
+      const result = await db.ref('reservations/' + vdata.id).transaction(current=>{
+        const count = current || 0;
+        if(count >= limit) return; // returning undefined aborts the transaction - bus is full
+        return count + 1;
+      });
+      if(result.committed){
+        vdata.reservations = result.snapshot.val();
+        localStorage.setItem(reservationKey(vdata.id), '1');
+      } else {
+        alert('Sorry, this bus is fully booked - no free spaces left to reserve.');
+      }
+    }catch(e){
+      alert('Could not reserve a seat right now. Please try again.');
+    }
+    renderDetail(route, vdata);
+  }
+
+  async function cancelSeat(route, vdata){
+    try{
+      const result = await db.ref('reservations/' + vdata.id).transaction(current=>{
+        const count = current || 0;
+        return Math.max(0, count - 1);
+      });
+      if(result.committed) vdata.reservations = result.snapshot.val();
+    }catch(e){ /* ignore - we still clear the local flag below */ }
+    localStorage.removeItem(reservationKey(vdata.id));
+    renderDetail(route, vdata);
+  }
 
   function nearestSegment(stops, lat, lng){
     if(lat == null || lng == null) return 0;
@@ -903,6 +997,20 @@ function initPassengerApp(){
       upcoming.push({ name: route.stops[(segIdx+i) % (route.stops.length-1) + 1].name, eta: i*3 + Math.floor(Math.random()*2) });
     }
 
+    const reservations = vdata.reservations || 0;
+    const freeSpace = Math.max(0, vdata.cap - vdata.occ - reservations);
+    const already = iHaveReserved(vdata.id);
+    let btnLabel, btnClass = '', btnDisabled = false;
+    if(already){
+      btnLabel = 'Cancel my reservation';
+      btnClass = 'reserved';
+    } else if(freeSpace <= 0){
+      btnLabel = 'Fully booked';
+      btnDisabled = true;
+    } else {
+      btnLabel = 'Reserve a seat';
+    }
+
     detailBody.innerHTML = `
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
         <div class="route-chip" style="background:${route.color}; height:18px;"></div>
@@ -923,8 +1031,22 @@ function initPassengerApp(){
       <div class="detail-section-label">Cabin view</div>
       <div class="car-diagram">${seatsHTML}</div>
 
-
+      <div class="detail-section-label">Seat reservation</div>
+      <div class="reserve-box">
+        <div class="reserve-stats">
+          <span><b>${reservations}</b> reserved</span>
+          <span><b>${freeSpace}</b> free</span>
+        </div>
+        <button class="reserve-btn ${btnClass}" id="reserveBtn" ${btnDisabled ? 'disabled' : ''}>${btnLabel}</button>
+      </div>
     `;
+
+    const reserveBtn = document.getElementById('reserveBtn');
+    if(reserveBtn){
+      reserveBtn.addEventListener('click', ()=>{
+        if(already) cancelSeat(route, vdata); else reserveSeat(route, vdata);
+      });
+    }
   }
 
   document.getElementById('closeDetail').addEventListener('click', ()=>{
@@ -962,6 +1084,15 @@ function initPassengerApp(){
     }
   }
 
+  async function fetchReservationCount(id){
+    try{
+      const snap = await db.ref('reservations/' + id).once('value');
+      return snap.exists() ? snap.val() : 0;
+    }catch(e){
+      return 0;
+    }
+  }
+
   async function tick(){
     let selectedWentOffline = false;
     for(const route of ROUTES){
@@ -973,6 +1104,7 @@ function initPassengerApp(){
           vdata.isLive = true;
           vdata.occ = Math.round((live.occupancyPct/100) * vdata.cap);
           vdata.lat = live.lat; vdata.lng = live.lng;
+          vdata.reservations = await fetchReservationCount(vdata.id);
           const pos = [live.lat, live.lng];
           const pct = occPct(vdata);
 
