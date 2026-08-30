@@ -132,12 +132,15 @@
   #driverApp .hint{ font-family:var(--body); font-size:12.5px; color:var(--text-dim); line-height:1.5; }
   #driverApp .hint b{ color:var(--text-mid); }
 
-  #driverApp .res-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  #driverApp .res-num{ font-family:var(--disp); font-weight:700; font-size:30px; line-height:1; }
-  #driverApp .res-sub{ font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:2px; }
-  #driverApp .res-free{ font-family:var(--body); font-size:12.5px; color:var(--text-mid); margin-top:10px; }
+  #driverApp .res-list{ max-height:190px; overflow-y:auto; margin-bottom:2px; }
+  #driverApp .res-item{ display:flex; align-items:center; justify-content:space-between; padding:9px 2px; border-bottom:1px solid var(--line); }
+  #driverApp .res-item:last-child{ border-bottom:none; }
+  #driverApp .res-ticket{ font-family:var(--disp); font-weight:600; font-size:15px; }
+  #driverApp .res-item .quick-btn{ flex:none; padding:7px 14px; margin-top:0; }
+  #driverApp .res-empty{ font-family:var(--mono); font-size:11.5px; color:var(--text-dim); padding:12px 0; text-align:center; }
+  #driverApp .res-free{ font-family:var(--body); font-size:12.5px; color:var(--text-mid); margin:10px 0; }
   #driverApp .res-free b{ color:var(--text-hi); }
-  #driverApp #clearResBtn{ flex:none; padding:10px 16px; }
+  #driverApp #clearResBtn{ width:100%; }
 
   /* ================= PASSENGER ================= */
   #passengerApp{ display:flex; flex-direction:column; height:100vh; overflow:hidden; }
@@ -260,6 +263,8 @@
   .reserve-btn{ width:100%; padding:13px; border:none; border-radius:9px; font-family:var(--disp); font-weight:600; font-size:14px; cursor:pointer; background:var(--amber); color:#1A1300; transition:background .2s, color .2s; }
   .reserve-btn.reserved{ background:var(--bg-panel); color:var(--rose); border:1px solid var(--rose); }
   .reserve-btn:disabled{ background:var(--line); color:var(--text-dim); cursor:not-allowed; }
+  .reserve-ticket{ font-family:var(--mono); font-size:12.5px; color:var(--text-mid); text-align:center; margin-bottom:10px; }
+  .reserve-ticket b{ color:var(--amber); font-family:var(--disp); font-size:16px; }
 
   ::-webkit-scrollbar{ width:8px; }
   ::-webkit-scrollbar-track{ background:transparent; }
@@ -358,17 +363,11 @@
 
   <div class="card">
     <div class="label">Seat reservations</div>
-    <div class="res-row">
-      <div>
-        <div class="res-num" id="resNum">0</div>
-        <div class="res-sub">passenger(s) reserved</div>
-      </div>
-      <div style="display:flex; gap:8px;">
-        <button class="quick-btn" id="boardResBtn">Boarded</button>
-        <button class="quick-btn" id="clearResBtn">Clear</button>
-      </div>
+    <div id="resList" class="res-list">
+      <div class="res-empty">No reservations yet.</div>
     </div>
     <div class="res-free">Free spaces left: <b id="resFree">—</b></div>
+    <button class="quick-btn" id="clearResBtn">Clear all</button>
   </div>
 
   <div class="card">
@@ -593,41 +592,53 @@ function initDriverApp() {
     document.getElementById('occLabel').textContent = lvl.label;
     document.getElementById('occLabel').style.color = lvl.c;
     document.getElementById('occPct').textContent = pct + '%';
-    refreshResUI();
+    renderResList();
   }
 
   /* ---------- seat reservations (driver side) ---------- */
-  let resListenerRef = null; // Firebase ref we currently have a .on('value') listener attached to
-  let lastResCount = 0;      // most recent reservation count we heard from Firebase for currentVehicle
+  let resListenerRef = null;   // Firebase ref we currently have a .on('value') listener attached to
+  let lastReservations = {};   // most recent { reservationId: {number, ts} } map for currentVehicle
 
-  function refreshResUI(){
-    const free = Math.max(0, currentVehicle.cap - pax - lastResCount);
-    document.getElementById('resNum').textContent = lastResCount;
+  function renderResList(){
+    const entries = Object.entries(lastReservations)
+      .sort((a, b) => a[1].number - b[1].number); // show lowest ticket number first
+
+    const listEl = document.getElementById('resList');
+    if(entries.length === 0){
+      listEl.innerHTML = '<div class="res-empty">No reservations yet.</div>';
+    } else {
+      listEl.innerHTML = entries.map(([id, entry]) => `
+        <div class="res-item">
+          <span class="res-ticket">Reservation #${entry.number}</span>
+          <button class="quick-btn" data-res-id="${id}">Boarded</button>
+        </div>
+      `).join('');
+      // Re-attach a click handler to every "Boarded" button - innerHTML wiped any old ones.
+      listEl.querySelectorAll('button[data-res-id]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          // Removing just this one child releases exactly this passenger's
+          // held seat - no ambiguity about which of several reservations goes.
+          db.ref('reservations/' + currentVehicle.id + '/' + btn.dataset.resId).remove();
+        });
+      });
+    }
+
+    const free = Math.max(0, currentVehicle.cap - pax - entries.length);
     document.getElementById('resFree').textContent = free;
   }
 
   function bindReservationListener(){
     if(resListenerRef) resListenerRef.off(); // stop listening to the previous vehicle's reservations
-    lastResCount = 0;
+    lastReservations = {};
     resListenerRef = db.ref('reservations/' + currentVehicle.id);
     resListenerRef.on('value', snap=>{
-      lastResCount = snap.exists() ? snap.val() : 0;
-      refreshResUI();
+      lastReservations = snap.exists() ? snap.val() : {};
+      renderResList();
     });
   }
 
-  document.getElementById('boardResBtn').addEventListener('click', ()=>{
-    // A reserved passenger has physically boarded - release exactly one held
-    // seat. Uses a transaction so it can never go below zero even if tapped
-    // in the same instant a passenger's own reservation is being processed.
-    db.ref('reservations/' + currentVehicle.id).transaction(current=>{
-      const count = current || 0;
-      return Math.max(0, count - 1);
-    });
-  });
-
   document.getElementById('clearResBtn').addEventListener('click', ()=>{
-    db.ref('reservations/' + currentVehicle.id).set(0);
+    db.ref('reservations/' + currentVehicle.id).remove();
   });
 
   vehicleSelect.addEventListener('change', ()=>{
@@ -693,7 +704,7 @@ function initDriverApp() {
     db.ref('vehicles/' + currentVehicle.id).onDisconnect().remove();
     // Same safety net for reservations, and start this trip with a clean count.
     db.ref('reservations/' + currentVehicle.id).onDisconnect().remove();
-    db.ref('reservations/' + currentVehicle.id).set(0);
+    db.ref('reservations/' + currentVehicle.id).remove();
 
     watchId = navigator.geolocation.watchPosition(
       (pos)=>{
@@ -802,19 +813,36 @@ function initPassengerApp(){
 
   /* ---------- seat reservations (passenger side) ---------- */
   function reservationKey(vehId){ return 'tnr_reservation_' + vehId; }
-  function iHaveReserved(vehId){ return localStorage.getItem(reservationKey(vehId)) === '1'; }
+
+  // What this browser holds for a given vehicle, if anything: { id, number }
+  // - id is the Firebase child key (so we can find/remove exactly this entry)
+  // - number is the ticket number shown to the rider ("You're reservation #4")
+  function getMyReservation(vehId){
+    const raw = localStorage.getItem(reservationKey(vehId));
+    if(!raw) return null;
+    try{ return JSON.parse(raw); }catch(e){ return null; }
+  }
 
   async function reserveSeat(route, vdata){
     const limit = vdata.cap - vdata.occ; // seats not already filled by boarded passengers
+    const resRef = db.ref('reservations/' + vdata.id);
+    const newKey = resRef.push().key; // generates a unique id locally - nothing is written yet
     try{
-      const result = await db.ref('reservations/' + vdata.id).transaction(current=>{
-        const count = current || 0;
-        if(count >= limit) return; // returning undefined aborts the transaction - bus is full
-        return count + 1;
+      const result = await resRef.transaction(current=>{
+        const entries = current || {};
+        if(Object.keys(entries).length >= limit) return; // abort - bus is full
+        // Ticket numbers only ever go up, so two riders never end up sharing
+        // a number even as earlier reservations get boarded and removed.
+        let maxNumber = 0;
+        Object.values(entries).forEach(e=>{ if(e.number > maxNumber) maxNumber = e.number; });
+        const updated = Object.assign({}, entries);
+        updated[newKey] = { number: maxNumber + 1, ts: Date.now() };
+        return updated;
       });
       if(result.committed){
-        vdata.reservations = result.snapshot.val();
-        localStorage.setItem(reservationKey(vdata.id), '1');
+        vdata.reservationList = result.snapshot.val();
+        const myNumber = vdata.reservationList[newKey].number;
+        localStorage.setItem(reservationKey(vdata.id), JSON.stringify({ id:newKey, number:myNumber }));
       } else {
         alert('Sorry, this bus is fully booked - no free spaces left to reserve.');
       }
@@ -825,14 +853,11 @@ function initPassengerApp(){
   }
 
   async function cancelSeat(route, vdata){
-    try{
-      const result = await db.ref('reservations/' + vdata.id).transaction(current=>{
-        const count = current || 0;
-        return Math.max(0, count - 1);
-      });
-      if(result.committed) vdata.reservations = result.snapshot.val();
-    }catch(e){ /* ignore - we still clear the local flag below */ }
+    const mine = getMyReservation(vdata.id);
     localStorage.removeItem(reservationKey(vdata.id));
+    if(mine){
+      try{ await db.ref('reservations/' + vdata.id + '/' + mine.id).remove(); }catch(e){ /* ignore */ }
+    }
     renderDetail(route, vdata);
   }
 
@@ -1010,9 +1035,11 @@ function initPassengerApp(){
       upcoming.push({ name: route.stops[(segIdx+i) % (route.stops.length-1) + 1].name, eta: i*3 + Math.floor(Math.random()*2) });
     }
 
-    const reservations = vdata.reservations || 0;
+    const reservationList = vdata.reservationList || {};
+    const reservations = Object.keys(reservationList).length;
     const freeSpace = Math.max(0, vdata.cap - vdata.occ - reservations);
-    const already = iHaveReserved(vdata.id);
+    const mine = getMyReservation(vdata.id);
+    const already = mine !== null;
     let btnLabel, btnClass = '', btnDisabled = false;
     if(already){
       btnLabel = 'Cancel my reservation';
@@ -1050,6 +1077,7 @@ function initPassengerApp(){
           <span><b>${reservations}</b> reserved</span>
           <span><b>${freeSpace}</b> free</span>
         </div>
+        ${already ? `<div class="reserve-ticket">You're reservation <b>#${mine.number}</b></div>` : ''}
         <button class="reserve-btn ${btnClass}" id="reserveBtn" ${btnDisabled ? 'disabled' : ''}>${btnLabel}</button>
       </div>
     `;
@@ -1097,12 +1125,12 @@ function initPassengerApp(){
     }
   }
 
-  async function fetchReservationCount(id){
+  async function fetchReservationList(id){
     try{
       const snap = await db.ref('reservations/' + id).once('value');
-      return snap.exists() ? snap.val() : 0;
+      return snap.exists() ? snap.val() : {};
     }catch(e){
-      return 0;
+      return {};
     }
   }
 
@@ -1117,7 +1145,14 @@ function initPassengerApp(){
           vdata.isLive = true;
           vdata.occ = Math.round((live.occupancyPct/100) * vdata.cap);
           vdata.lat = live.lat; vdata.lng = live.lng;
-          vdata.reservations = await fetchReservationCount(vdata.id);
+          vdata.reservationList = await fetchReservationList(vdata.id);
+          // If we're holding a ticket for this bus but it's no longer in the
+          // list, the driver has already tapped "Boarded" on it (or cleared
+          // the list) - release our local hold too, no action needed from us.
+          const mine = getMyReservation(vdata.id);
+          if(mine && !vdata.reservationList[mine.id]){
+            localStorage.removeItem(reservationKey(vdata.id));
+          }
           const pos = [live.lat, live.lng];
           const pct = occPct(vdata);
 
@@ -1138,7 +1173,7 @@ function initPassengerApp(){
           delete vehicleMarkers[vdata.id];
           vdata.isLive = false;
           if(vdata.id === selectedVehicleId) selectedWentOffline = true;
-          if(iHaveReserved(vdata.id)){
+          if(getMyReservation(vdata.id)){
             localStorage.removeItem(reservationKey(vdata.id));
           }
         }
