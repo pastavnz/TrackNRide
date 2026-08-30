@@ -363,7 +363,10 @@
         <div class="res-num" id="resNum">0</div>
         <div class="res-sub">passenger(s) reserved</div>
       </div>
-      <button class="quick-btn" id="clearResBtn">Clear</button>
+      <div style="display:flex; gap:8px;">
+        <button class="quick-btn" id="boardResBtn">Boarded</button>
+        <button class="quick-btn" id="clearResBtn">Clear</button>
+      </div>
     </div>
     <div class="res-free">Free spaces left: <b id="resFree">—</b></div>
   </div>
@@ -612,6 +615,16 @@ function initDriverApp() {
       refreshResUI();
     });
   }
+
+  document.getElementById('boardResBtn').addEventListener('click', ()=>{
+    // A reserved passenger has physically boarded - release exactly one held
+    // seat. Uses a transaction so it can never go below zero even if tapped
+    // in the same instant a passenger's own reservation is being processed.
+    db.ref('reservations/' + currentVehicle.id).transaction(current=>{
+      const count = current || 0;
+      return Math.max(0, count - 1);
+    });
+  });
 
   document.getElementById('clearResBtn').addEventListener('click', ()=>{
     db.ref('reservations/' + currentVehicle.id).set(0);
@@ -1125,6 +1138,9 @@ function initPassengerApp(){
           delete vehicleMarkers[vdata.id];
           vdata.isLive = false;
           if(vdata.id === selectedVehicleId) selectedWentOffline = true;
+          if(iHaveReserved(vdata.id)){
+            localStorage.removeItem(reservationKey(vdata.id));
+          }
         }
       }
     }
